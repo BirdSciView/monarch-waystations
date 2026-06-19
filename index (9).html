@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Waterloo Region Monarch Waystations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{
+  --paper:#FBF6EC;
+  --paper-dim:#F3ECDD;
+  --ink:#1B1B1B;
+  --ink-soft:#5b5650;
+  --orange:#D9622B;
+  --orange-dim:#f1ddcf;
+  --green:#4F7942;
+  --green-dim:#e1ead9;
+  --blue:#3E6B8A;
+  --blue-dim:#dde7ec;
+  --gold:#F2C14E;
+  --line:#d8cfba;
+  --egg:#3E6B8A;
+  --cat:#4F7942;
+  --chry:#F2C14E;
+  --fly:#D9622B;
+  --radius:14px;
+  --shadow:0 1px 2px rgba(27,27,27,0.06), 0 6px 18px rgba(27,27,27,0.05);
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'Work Sans', sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.display{font-family:'Fraunces', serif;}
+.mono{font-family:'JetBrains Mono', monospace;}
+a{color:inherit;}
+.dotted-rule{border:none;border-top:2px dotted var(--line);margin:0;}
+
+/* ---------- topbar ---------- */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 28px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:rgba(251,246,236,0.92);backdrop-filter:blur(6px);
+  z-index:50;
+}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-mark{
+  width:34px;height:34px;border-radius:50%;
+  background:conic-gradient(var(--egg) 0 25%, var(--cat) 25% 50%, var(--chry) 50% 75%, var(--fly) 75% 100%);
+  flex-shrink:0;
+}
+.brand-text{line-height:1.1;}
+.brand-text .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);}
+.brand-text .title{font-size:18px;font-weight:600;}
+.nav-actions{display:flex;gap:10px;}
+.btn{
+  font-family:'Work Sans',sans-serif;font-weight:600;font-size:13.5px;
+  padding:9px 16px;border-radius:999px;border:1px solid var(--ink);
+  background:transparent;color:var(--ink);cursor:pointer;
+  transition:transform .12s ease, background .12s ease;
+}
+.btn:hover{transform:translateY(-1px);}
+.btn.solid{background:var(--ink);color:var(--paper);}
+.btn.orange{background:var(--orange);border-color:var(--orange);color:#fff;}
+.btn.ghost{border-color:var(--line);}
+.btn.small{padding:6px 12px;font-size:12.5px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+
+/* ---------- hero ---------- */
+.hero{
+  padding:56px 28px 36px;max-width:1180px;margin:0 auto;
+}
+.hero .eyebrow{
+  font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--orange);font-weight:600;
+}
+.hero h1{font-size:clamp(32px,5vw,52px);font-weight:600;margin:10px 0 14px;max-width:820px;line-height:1.05;}
+.hero p.lede{font-size:17px;color:var(--ink-soft);max-width:620px;line-height:1.55;margin:0 0 28px;}
+
+/* ---------- stat strip ---------- */
+.stat-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+  max-width:1180px;margin:0 auto 36px;
+}
+.stat-card{background:var(--paper);padding:20px 18px;}
+.stat-card .num{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:30px;line-height:1;}
+.stat-card .label{margin-top:8px;font-size:12.5px;color:var(--ink-soft);}
+
+/* ---------- life-cycle dial legend ---------- */
+.dial-legend{
+  display:flex;align-items:center;gap:22px;flex-wrap:wrap;
+  max-width:1180px;margin:0 auto 36px;padding:18px 22px;
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--paper-dim);
+}
+.dial-svg{flex-shrink:0;}
+.legend-items{display:flex;gap:18px;flex-wrap:wrap;flex:1;}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:13px;}
+.legend-dot{width:11px;height:11px;border-radius:50%;}
+.legend-item .count{font-family:'JetBrains Mono',monospace;font-weight:700;margin-left:2px;}
+
+/* ---------- map section ---------- */
+.section{max-width:1180px;margin:0 auto;padding:0 28px 56px;}
+.section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+.section-head h2{font-size:24px;font-weight:600;margin:0;}
+.section-head .tag{font-size:12px;color:var(--ink-soft);font-family:'JetBrains Mono',monospace;}
+#map{
+  height:480px;width:100%;border-radius:var(--radius);border:1px solid var(--line);
+  box-shadow:var(--shadow);
+}
+
+/* ---------- footer / access cards ---------- */
+.access-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;}
+.access-card{
+  border:1px solid var(--line);border-radius:var(--radius);padding:22px;background:#fff;
+  box-shadow:var(--shadow);
+}
+.access-card .stage-tag{
+  display:inline-block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 9px;border-radius:999px;margin-bottom:10px;font-weight:600;
+}
+.access-card h3{margin:4px 0 8px;font-size:19px;}
+.access-card p{font-size:13.5px;color:var(--ink-soft);line-height:1.5;margin:0 0 16px;}
+
+footer{padding:30px 28px;text-align:center;font-size:12.5px;color:var(--ink-soft);}
+
+/* ---------- modal / login ---------- */
+.overlay{
+  position:fixed;inset:0;background:rgba(27,27,27,0.42);display:none;
+  align-items:center;justify-content:center;z-index:100;padding:16px;
+}
+.overlay.open{display:flex;}
+.modal{
+  background:var(--paper);border-radius:var(--radius);border:1px solid var(--line);
+  width:100%;max-width:380px;padding:28px;box-shadow:var(--shadow);
+}
+.modal h3{margin:0 0 6px;}
+.modal p{font-size:13.5px;color:var(--ink-soft);margin:0 0 18px;}
+.pin-input{
+  width:100%;font-family:'JetBrains Mono',monospace;font-size:24px;letter-spacing:.3em;
+  text-align:center;padding:14px;border-radius:10px;border:1px solid var(--line);
+  background:#fff;margin-bottom:12px;
+}
+.modal-error{color:var(--orange);font-size:13px;min-height:18px;margin-bottom:6px;}
+.modal-actions{display:flex;gap:10px;margin-top:8px;}
+.modal-actions .btn{flex:1;}
+.close-x{float:right;cursor:pointer;font-size:18px;color:var(--ink-soft);}
+
+/* ---------- app views (student/teacher/manager) ---------- */
+.app-view{display:none;min-height:100vh;background:var(--paper);}
+.app-view.open{display:block;}
+.app-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 28px;border-bottom:1px solid var(--line);background:var(--paper-dim);
+}
+.app-body{max-width:980px;margin:0 auto;padding:28px;}
+.card{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:22px;margin-bottom:18px;box-shadow:var(--shadow);
+}
+.card h3{margin:0 0 14px;font-size:17px;}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.field{display:flex;flex-direction:column;gap:6px;}
+.field label{font-size:12.5px;color:var(--ink-soft);font-weight:600;}
+.field input, .field select{
+  font-family:'Work Sans',sans-serif;padding:9px 11px;border-radius:8px;border:1px solid var(--line);
+  font-size:14px;background:var(--paper);
+}
+.field.checkbox{flex-direction:row;align-items:center;gap:8px;}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;}
+.pill.pending{background:var(--blue-dim);color:var(--blue);}
+.pill.approved{background:var(--green-dim);color:var(--green);}
+.pill.rejected{background:var(--orange-dim);color:var(--orange);}
+.list-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px dotted var(--line);}
+.list-row:first-child{border-top:none;}
+.muted{color:var(--ink-soft);font-size:12.5px;}
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+  background:var(--ink);color:var(--paper);padding:11px 20px;border-radius:999px;
+  font-size:13.5px;opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;z-index:200;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+.milestone-row{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px dotted var(--line);}
+.milestone-row:first-child{border-top:none;}
+.milestone-check{width:18px;height:18px;border-radius:5px;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;}
+.milestone-check.met{background:var(--green);}
+.milestone-check.unmet{background:var(--line);}
+.config-line{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px dotted var(--line);}
+.config-line:first-child{border-top:none;}
+.config-line input{width:90px;}
+.feed-item{border-top:1px dotted var(--line);padding:16px 0;}
+.feed-item:first-child{border-top:none;}
+.feed-photo{max-width:100%;border-radius:10px;margin-bottom:8px;display:block;border:1px solid var(--line);}
+.feed-caption{font-size:13.5px;margin-bottom:4px;}
+.feed-message{background:var(--paper-dim);padding:14px;border-radius:10px;border:1px dotted var(--line);font-size:14px;line-height:1.5;}
+.feed-meta-row{display:flex;align-items:center;justify-content:space-between;margin-top:6px;}
+.feed-del{color:var(--orange);cursor:pointer;font-size:12px;text-decoration:underline;}
+.announcement-card{
+  border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;background:#fff;
+  box-shadow:var(--shadow);margin-bottom:12px;
+}
+.announcement-card .ann-date{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--orange);margin-bottom:6px;}
+@media (max-width:640px){
+  .field-row{grid-template-columns:1fr;}
+  .topbar{padding:14px 16px;}
+  .hero{padding:36px 16px 24px;}
+  .section{padding:0 16px 40px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- LANDING PAGE -->
+<!-- ============================================================ -->
+<div id="landing">
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-text">
+        <div class="eyebrow">Living Laboratories</div>
+        <div class="title">Monarch Waystations</div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <button class="btn ghost" onclick="openLogin('student')">Student</button>
+      <button class="btn ghost" onclick="openLogin('teacher')">Teacher</button>
+      <button class="btn solid" onclick="openLogin('manager')">Manager</button>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="eyebrow">Waterloo Region · 126 School Sites</div>
+    <h1>Tracking habitat, one waystation at a time.</h1>
+    <p class="lede">Every school garden on this map is real curriculum, planted in the ground. Watch the region's milkweed, wildflowers, and monarch sightings grow as eco teams log their progress from egg to butterfly.</p>
+  </div>
+
+  <div class="stat-grid" id="statGrid">
+    <div class="stat-card"><div class="num mono" id="statSchools">—</div><div class="label">Schools participating</div></div>
+    <div class="stat-card"><div class="num mono" id="statArea">—</div><div class="label">Hectares restored</div></div>
+    <div class="stat-card"><div class="num mono" id="statMilkweed">—</div><div class="label">Milkweed plants</div></div>
+    <div class="stat-card"><div class="num mono" id="statWildflower">—</div><div class="label">Wildflower species</div></div>
+    <div class="stat-card"><div class="num mono" id="statMonarchs">—</div><div class="label">Monarchs observed</div></div>
+  </div>
+
+  <div class="dial-legend">
+    <svg class="dial-svg" width="64" height="64" viewBox="0 0 64 64">
+      <circle cx="32" cy="32" r="26" fill="none" stroke="#3E6B8A" stroke-width="12" stroke-dasharray="40.8 163.4" stroke-dashoffset="0" transform="rotate(-90 32 32)"/>
+      <circle cx="32" cy="32" r="26" fill="none" stroke="#4F7942" stroke-width="12" stroke-dasharray="40.8 163.4" stroke-dashoffset="-40.8" transform="rotate(-90 32 32)"/>
+      <circle cx="32" cy="32" r="26" fill="none" stroke="#F2C14E" stroke-width="12" stroke-dasharray="40.8 163.4" stroke-dashoffset="-81.6" transform="rotate(-90 32 32)"/>
+      <circle cx="32" cy="32" r="26" fill="none" stroke="#D9622B" stroke-width="12" stroke-dasharray="40.8 163.4" stroke-dashoffset="-122.4" transform="rotate(-90 32 32)"/>
+    </svg>
+    <div class="legend-items" id="legendItems">
+      <div class="legend-item"><span class="legend-dot" style="background:var(--egg)"></span>Egg <span class="count mono" id="cnt-Egg">—</span></div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--cat)"></span>Caterpillar <span class="count mono" id="cnt-Caterpillar">—</span></div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--chry)"></span>Chrysalis <span class="count mono" id="cnt-Chrysalis">—</span></div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--fly)"></span>Butterfly <span class="count mono" id="cnt-Butterfly">—</span></div>
+    </div>
+  </div>
+
+  <div class="section" id="announcementsSection" style="display:none;">
+    <div class="section-head">
+      <h2>Program updates</h2>
+      <span class="tag">posted by the program manager</span>
+    </div>
+    <div id="announcementsList"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <h2>Waystation map</h2>
+      <span class="tag">OpenStreetMap · pin colour = stage</span>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>Sign in</h2></div>
+    <div class="access-grid">
+      <div class="access-card">
+        <span class="stage-tag" style="background:var(--egg-dim,var(--blue-dim));color:var(--blue)">Sandbox</span>
+        <h3>Student</h3>
+        <p>Use your school's student PIN to log measurements and monarch sightings. Everything you add waits for your teacher's approval before it appears here.</p>
+        <button class="btn orange small" onclick="openLogin('student')">Enter sandbox</button>
+      </div>
+      <div class="access-card">
+        <span class="stage-tag" style="background:var(--green-dim);color:var(--green)">Review</span>
+        <h3>Teacher</h3>
+        <p>Approve or return student submissions, watch your waystation's milestones, and see what's needed for the next life stage.</p>
+        <button class="btn orange small" onclick="openLogin('teacher')">Review submissions</button>
+      </div>
+      <div class="access-card">
+        <span class="stage-tag" style="background:var(--orange-dim);color:var(--orange)">Admin</span>
+        <h3>Manager</h3>
+        <p>Oversee all 126 sites, reset PINs, remove incorrect entries, and adjust program-wide milestone thresholds.</p>
+        <button class="btn solid small" onclick="openLogin('manager')">Manager console</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>Waterloo Region Monarch Waystations &middot; a living laboratory program for declining monarch populations</footer>
+</div>
+
+<!-- ============================================================ -->
+<!-- LOGIN MODAL -->
+<!-- ============================================================ -->
+<div class="overlay" id="loginOverlay">
+  <div class="modal">
+    <span class="close-x" onclick="closeLogin()">&times;</span>
+    <h3 id="loginTitle">Sign in</h3>
+    <p id="loginSub">Enter your PIN to continue.</p>
+    <input type="password" inputmode="numeric" class="pin-input" id="pinInput" maxlength="8" placeholder="••••">
+    <div class="modal-error" id="loginError"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" onclick="closeLogin()">Cancel</button>
+      <button class="btn solid" onclick="submitLogin()">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- STUDENT VIEW -->
+<!-- ============================================================ -->
+<div class="app-view" id="studentView">
+  <div class="app-header">
+    <div class="brand"><div class="brand-mark"></div><div class="brand-text"><div class="eyebrow">Student Sandbox</div><div class="title" id="studentSchoolName">—</div></div></div>
+    <button class="btn ghost small" onclick="logout()">Sign out</button>
+  </div>
+  <div class="app-body">
+    <div class="card">
+      <h3>Log a habitat measurement</h3>
+      <p class="muted" style="margin-top:-8px;margin-bottom:14px;">This goes to your teacher for approval before it counts toward your waystation's status.</p>
+      <div class="field-row">
+        <div class="field"><label>Garden area (m²)</label><input type="number" id="m-area" placeholder="e.g. 18"></div>
+        <div class="field"><label>Milkweed plants</label><input type="number" id="m-milkweed" placeholder="e.g. 12"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Wildflower species</label><input type="number" id="m-wildflower" placeholder="e.g. 7"></div>
+        <div class="field" style="justify-content:center;">
+          <div class="field checkbox"><input type="checkbox" id="m-water"><label>Has water source</label></div>
+          <div class="field checkbox"><input type="checkbox" id="m-shelter"><label>Has shelter feature</label></div>
+          <div class="field checkbox"><input type="checkbox" id="m-pesticide"><label>No-pesticide commitment</label></div>
+          <div class="field checkbox"><input type="checkbox" id="m-mgmtplan"><label>Has habitat management plan</label></div>
+        </div>
+      </div>
+      <button class="btn orange" onclick="submitMeasurement()">Submit for approval</button>
+    </div>
+
+    <div class="card">
+      <h3>Log a monarch sighting</h3>
+      <div class="field-row">
+        <div class="field"><label>Life stage observed</label>
+          <select id="o-stage"><option>Egg</option><option>Caterpillar</option><option>Chrysalis</option><option>Butterfly</option></select>
+        </div>
+        <div class="field"><label>Count</label><input type="number" id="o-count" placeholder="e.g. 3"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Date observed</label><input type="date" id="o-date"></div>
+        <div></div>
+      </div>
+      <button class="btn orange" onclick="submitObservation()">Submit for approval</button>
+    </div>
+
+    <div class="card">
+      <h3>Your eco team's wall</h3>
+      <p class="muted" style="margin-top:-8px;margin-bottom:14px;">Photos and messages from your teacher.</p>
+      <div id="studentFeed"><p class="muted">Loading…</p></div>
+    </div>
+
+    <div class="card">
+      <h3>Your submissions</h3>
+      <div id="studentSubmissions"><p class="muted">Loading…</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TEACHER VIEW -->
+<!-- ============================================================ -->
+<div class="app-view" id="teacherView">
+  <div class="app-header">
+    <div class="brand"><div class="brand-mark"></div><div class="brand-text"><div class="eyebrow">Teacher Review</div><div class="title" id="teacherSchoolName">—</div></div></div>
+    <button class="btn ghost small" onclick="logout()">Sign out</button>
+  </div>
+  <div class="app-body">
+    <div class="card">
+      <h3>Post a photo to your school's wall</h3>
+      <p class="muted" style="margin-top:-8px;margin-bottom:14px;">Visible only to your school's students and teacher.</p>
+      <div class="field-row">
+        <div class="field"><label>Photo</label><input type="file" accept="image/*" id="t-photo-file"></div>
+        <div class="field"><label>Caption (optional)</label><input type="text" id="t-photo-caption" placeholder="e.g. First monarch caterpillar spotted!"></div>
+      </div>
+      <button class="btn orange" onclick="submitPhoto()">Post photo</button>
+    </div>
+
+    <div class="card">
+      <h3>Post feedback or encouragement</h3>
+      <div class="field">
+        <textarea id="t-message-text" rows="3" placeholder="Great work planting this week's milkweed, eco team!" style="font-family:'Work Sans',sans-serif;padding:9px 11px;border-radius:8px;border:1px solid var(--line);font-size:14px;background:var(--paper);resize:vertical;"></textarea>
+      </div>
+      <button class="btn orange" style="margin-top:12px;" onclick="submitSchoolMessage()">Post message</button>
+    </div>
+
+    <div class="card">
+      <h3>Your school's wall</h3>
+      <div id="teacherFeed"><p class="muted">Loading…</p></div>
+    </div>
+
+    <div class="card">
+      <h3>Pending student submissions</h3>
+      <div id="pendingList"><p class="muted">Loading…</p></div>
+    </div>
+    <div class="card">
+      <h3>Milestones toward the next stage</h3>
+      <div id="teacherMilestones"><p class="muted">Loading…</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MANAGER VIEW -->
+<!-- ============================================================ -->
+<div class="app-view" id="managerView">
+  <div class="app-header">
+    <div class="brand"><div class="brand-mark"></div><div class="brand-text"><div class="eyebrow">Program Admin</div><div class="title">Manager Console</div></div></div>
+    <button class="btn ghost small" onclick="logout()">Sign out</button>
+  </div>
+  <div class="app-body">
+    <div class="card">
+      <h3>All schools</h3>
+      <div class="field-row">
+        <div class="field"><label>Find a school to reset its PIN</label>
+          <select id="mgr-school-select"><option>Loading…</option></select>
+        </div>
+        <div class="field"><label>Reset which PIN?</label>
+          <select id="mgr-pin-role"><option value="student">Student</option><option value="teacher">Teacher</option></select>
+        </div>
+      </div>
+      <button class="btn orange" onclick="resetPinClick()">Reset PIN</button>
+      <p class="muted" id="resetResult" style="margin-top:10px;"></p>
+    </div>
+
+    <div class="card">
+      <h3>Add a new school</h3>
+      <div class="field-row">
+        <div class="field"><label>School name</label><input id="add-name"></div>
+        <div class="field"><label>Address</label><input id="add-address"></div>
+      </div>
+      <button class="btn orange" onclick="addSchoolClick()">Add school</button>
+      <p class="muted" id="addResult" style="margin-top:10px;"></p>
+    </div>
+
+    <div class="card">
+      <h3>Milestone thresholds</h3>
+      <div id="configList"><p class="muted">Loading…</p></div>
+    </div>
+
+    <div class="card">
+      <h3>Maintenance</h3>
+      <button class="btn ghost small" id="geocodeBtn" onclick="runGeocode()">Geocode schools missing coordinates</button>
+      <button class="btn ghost small" id="recomputeBtn" onclick="runRecompute()">Recompute all statuses</button>
+      <p class="muted" id="maintenanceStatus" style="margin-top:10px;"></p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ====================== CONFIGURATION ======================
+   Paste your deployed Apps Script Web App URL below.
+   See SETUP_GUIDE.md for how to get this.
+================================================================ */
+const API_URL = "https://script.google.com/macros/s/AKfycbwPRviimifctc8NzvqfIghVqlXwA4cjwlyMI-7UGIcU-j31r6ItSRUrzYodjU1Yzpzyiw/exec";
+
+let session = { role: null, pin: null, school_id: null, school_name: null };
+let pendingLoginRole = null;
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2600);
+}
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+async function loadAnnouncements(){
+  try{
+    const items = await callApi('getAnnouncements', {});
+    if(!items || !items.length) return;
+    document.getElementById('announcementsSection').style.display = 'block';
+    document.getElementById('announcementsList').innerHTML = items.map(a=>
+      '<div class="announcement-card">' +
+        (a.posted_date ? '<div class="ann-date">' + new Date(a.posted_date).toLocaleDateString() + '</div>' : '') +
+        '<div>' + escapeHtml(a.text) + '</div>' +
+      '</div>'
+    ).join('');
+  }catch(err){ /* fail silently on the public landing page */ }
+}
+
+async function callApi(action, payload){
+  if(API_URL.indexOf('PASTE_YOUR') === 0){
+    toast('Connect this app to your Apps Script URL first — see SETUP_GUIDE.md');
+    throw new Error('API not configured');
+  }
+  const body = Object.assign({action}, payload || {});
+  const resp = await fetch(API_URL, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(body)
+  });
+  const json = await resp.json();
+  if(!json.ok) throw new Error(json.error || 'Something went wrong.');
+  return json.data;
+}
+
+/* ---------------- Landing: overview + map ---------------- */
+const STAGE_COLORS = {Egg:'#3E6B8A', Caterpillar:'#4F7942', Chrysalis:'#F2C14E', Butterfly:'#D9622B'};
+let map;
+
+async function loadOverview(){
+  try{
+    const data = await callApi('getOverview', {});
+    document.getElementById('statSchools').textContent = data.school_count;
+    document.getElementById('statArea').textContent = data.total_area_hectares.toFixed(2);
+    document.getElementById('statMilkweed').textContent = data.total_milkweed;
+    document.getElementById('statWildflower').textContent = data.total_wildflower_species;
+    const monarchTotal = Object.values(data.monarchs_by_stage).reduce((a,b)=>a+b,0);
+    document.getElementById('statMonarchs').textContent = monarchTotal;
+    ['Egg','Caterpillar','Chrysalis','Butterfly'].forEach(s=>{
+      document.getElementById('cnt-'+s).textContent = data.stage_counts[s] || 0;
+    });
+  }catch(err){ /* surfaced via toast already if API not configured */ }
+}
+
+async function loadMap(){
+  map = L.map('map', { scrollWheelZoom:false }).setView([43.4643, -80.5204], 11); // Waterloo Region
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+  try{
+    const schools = await callApi('getSchoolsForMap', {});
+    const bounds = [];
+    schools.forEach(s=>{
+      const color = STAGE_COLORS[s.status] || STAGE_COLORS.Egg;
+      const marker = L.circleMarker([s.lat, s.lng], {
+        radius:8, weight:2, color:'#1B1B1B', fillColor:color, fillOpacity:0.9
+      }).addTo(map);
+      marker.bindPopup('<strong>'+s.school_name+'</strong><br>Stage: '+s.status);
+      bounds.push([s.lat, s.lng]);
+    });
+    if(bounds.length) map.fitBounds(bounds, {padding:[30,30]});
+  }catch(err){ /* ignore, toast already shown */ }
+}
+
+/* ---------------- School wall: photos + messages ---------------- */
+function renderFeed(items, canDelete){
+  if(!items || !items.length) return '<p class="muted">Nothing posted yet.</p>';
+  return items.map(it=>{
+    const delLink = canDelete ? '<span class="feed-del" onclick="deleteFeedItemClick(\''+it.feed_id+'\')">remove</span>' : '<span></span>';
+    const dateStr = it.posted_at ? new Date(it.posted_at).toLocaleDateString() : '';
+    if(it.type === 'photo'){
+      return '<div class="feed-item">' +
+        '<img src="'+it.image_url+'" class="feed-photo" loading="lazy">' +
+        (it.text ? '<div class="feed-caption">'+escapeHtml(it.text)+'</div>' : '') +
+        '<div class="feed-meta-row"><span class="muted">'+dateStr+'</span>'+delLink+'</div>' +
+      '</div>';
+    }
+    return '<div class="feed-item">' +
+      '<div class="feed-message">'+escapeHtml(it.text)+'</div>' +
+      '<div class="feed-meta-row"><span class="muted">'+dateStr+'</span>'+delLink+'</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function loadStudentFeed(){
+  const el = document.getElementById('studentFeed');
+  try{
+    const items = await callApi('getSchoolFeed', {pin:session.pin, school_id:session.school_id});
+    el.innerHTML = renderFeed(items, false);
+  }catch(err){ el.innerHTML = '<p class="muted">'+err.message+'</p>'; }
+}
+
+async function loadTeacherFeed(){
+  const el = document.getElementById('teacherFeed');
+  try{
+    const items = await callApi('getSchoolFeed', {pin:session.pin, school_id:session.school_id});
+    el.innerHTML = renderFeed(items, true);
+  }catch(err){ el.innerHTML = '<p class="muted">'+err.message+'</p>'; }
+}
+
+async function deleteFeedItemClick(feed_id){
+  if(!confirm('Remove this from the wall?')) return;
+  try{
+    await callApi('deleteFeedItem', {pin:session.pin, school_id:session.school_id, feed_id});
+    toast('Removed.');
+    loadTeacherFeed();
+  }catch(err){ toast(err.message); }
+}
+
+// Resizes/compresses an image client-side before sending, to keep uploads
+// fast and well within request size limits.
+function resizeImageToBase64(file, maxDim){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; }
+        else if(h >= w && h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.82).split(',')[1]);
+      };
+      img.onerror = ()=>reject(new Error('Could not read that image file.'));
+      img.src = e.target.result;
+    };
+    reader.onerror = ()=>reject(new Error('Could not read that image file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function submitPhoto(){
+  const fileInput = document.getElementById('t-photo-file');
+  const caption = document.getElementById('t-photo-caption').value.trim();
+  if(!fileInput.files.length){ toast('Choose a photo first.'); return; }
+  toast('Uploading photo…');
+  try{
+    const base64data = await resizeImageToBase64(fileInput.files[0], 1600);
+    await callApi('uploadPhoto', {pin:session.pin, school_id:session.school_id, base64data, mime_type:'image/jpeg', caption});
+    toast('Photo posted to your wall.');
+    fileInput.value = '';
+    document.getElementById('t-photo-caption').value = '';
+    loadTeacherFeed();
+  }catch(err){ toast(err.message); }
+}
+
+async function submitSchoolMessage(){
+  const textEl = document.getElementById('t-message-text');
+  const text = textEl.value.trim();
+  if(!text){ toast('Write a message first.'); return; }
+  try{
+    await callApi('postSchoolMessage', {pin:session.pin, school_id:session.school_id, text});
+    toast('Message posted.');
+    textEl.value = '';
+    loadTeacherFeed();
+  }catch(err){ toast(err.message); }
+}
+
+/* ---------------- Login modal ---------------- */
+function openLogin(role){
+  pendingLoginRole = role;
+  document.getElementById('loginTitle').textContent = role.charAt(0).toUpperCase()+role.slice(1)+' sign in';
+  document.getElementById('loginSub').textContent =
+    role === 'manager' ? 'Enter the manager PIN.' : 'Enter your school\'s '+role+' PIN.';
+  document.getElementById('pinInput').value = '';
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('loginOverlay').classList.add('open');
+  document.getElementById('pinInput').focus();
+}
+function closeLogin(){ document.getElementById('loginOverlay').classList.remove('open'); }
+
+document.getElementById('pinInput').addEventListener('keydown', e=>{ if(e.key==='Enter') submitLogin(); });
+
+async function submitLogin(){
+  const pin = document.getElementById('pinInput').value.trim();
+  const errEl = document.getElementById('loginError');
+  if(!pin){ errEl.textContent = 'Enter a PIN.'; return; }
+  try{
+    const result = await callApi('login', {pin});
+    if(pendingLoginRole !== 'manager' && result.role !== pendingLoginRole){
+      errEl.textContent = 'That PIN is for a different role.'; return;
+    }
+    session = {role: result.role, pin, school_id: result.school_id || null, school_name: result.school_name || null};
+    closeLogin();
+    enterView(result.role);
+  }catch(err){
+    errEl.textContent = err.message;
+  }
+}
+
+function logout(){
+  document.querySelectorAll('.app-view').forEach(v=>v.classList.remove('open'));
+  document.getElementById('landing').style.display = 'block';
+  session = {role:null,pin:null,school_id:null,school_name:null};
+}
+
+function enterView(role){
+  document.getElementById('landing').style.display = 'none';
+  if(role === 'student'){
+    document.getElementById('studentSchoolName').textContent = session.school_name;
+    document.getElementById('studentView').classList.add('open');
+    loadStudentSubmissions();
+    loadStudentFeed();
+  } else if(role === 'teacher'){
+    document.getElementById('teacherSchoolName').textContent = session.school_name;
+    document.getElementById('teacherView').classList.add('open');
+    loadPending(); loadTeacherMilestones();
+    loadTeacherFeed();
+  } else if(role === 'manager'){
+    document.getElementById('managerView').classList.add('open');
+    loadManagerSchools(); loadConfig();
+  }
+}
+
+/* ---------------- Student actions ---------------- */
+async function submitMeasurement(){
+  const payload = {
+    area_m2: Number(document.getElementById('m-area').value || 0),
+    milkweed_count: Number(document.getElementById('m-milkweed').value || 0),
+    wildflower_species_count: Number(document.getElementById('m-wildflower').value || 0),
+    has_water_source: document.getElementById('m-water').checked,
+    has_shelter: document.getElementById('m-shelter').checked,
+    no_pesticide_commitment: document.getElementById('m-pesticide').checked,
+    has_management_plan: document.getElementById('m-mgmtplan').checked
+  };
+  try{
+    await callApi('submitEntry', {pin:session.pin, school_id:session.school_id, type:'measurement', payload, submitted_by:'Student'});
+    toast('Submitted! Your teacher will review it.');
+    loadStudentSubmissions();
+  }catch(err){ toast(err.message); }
+}
+
+async function submitObservation(){
+  const payload = {
+    life_stage: document.getElementById('o-stage').value,
+    count: Number(document.getElementById('o-count').value || 0),
+    observed_date: document.getElementById('o-date').value
+  };
+  try{
+    await callApi('submitEntry', {pin:session.pin, school_id:session.school_id, type:'observation', payload, submitted_by:'Student'});
+    toast('Submitted! Your teacher will review it.');
+    loadStudentSubmissions();
+  }catch(err){ toast(err.message); }
+}
+
+async function loadStudentSubmissions(){
+  const el = document.getElementById('studentSubmissions');
+  try{
+    const subs = await callApi('getMySubmissions', {pin:session.pin, school_id:session.school_id});
+    if(!subs.length){ el.innerHTML = '<p class="muted">Nothing submitted yet.</p>'; return; }
+    el.innerHTML = subs.map(s=>{
+      const cls = s.status === 'Approved' ? 'approved' : (s.status === 'Rejected' ? 'rejected' : 'pending');
+      return '<div class="list-row"><div><strong>'+s.type+'</strong><div class="muted">'+new Date(s.submitted_at).toLocaleDateString()+'</div></div><span class="pill '+cls+'">'+s.status+'</span></div>';
+    }).join('');
+  }catch(err){ el.innerHTML = '<p class="muted">'+err.message+'</p>'; }
+}
+
+/* ---------------- Teacher actions ---------------- */
+async function loadPending(){
+  const el = document.getElementById('pendingList');
+  try{
+    const subs = await callApi('getPendingSubmissions', {pin:session.pin, school_id:session.school_id});
+    if(!subs.length){ el.innerHTML = '<p class="muted">No pending submissions. You\'re all caught up.</p>'; return; }
+    el.innerHTML = subs.map(s=>{
+      let payload = {}; try{ payload = JSON.parse(s.payload); }catch(e){}
+      return '<div class="list-row"><div><strong>'+s.type+'</strong><div class="muted">'+JSON.stringify(payload)+'</div></div>'+
+        '<div><button class="btn small orange" onclick="review(\''+s.submission_id+'\',\'approve\')">Approve</button> '+
+        '<button class="btn small ghost" onclick="review(\''+s.submission_id+'\',\'reject\')">Return</button></div></div>';
+    }).join('');
+  }catch(err){ el.innerHTML = '<p class="muted">'+err.message+'</p>'; }
+}
+async function review(submission_id, decision){
+  try{
+    await callApi('reviewSubmission', {pin:session.pin, school_id:session.school_id, submission_id, decision});
+    toast(decision === 'approve' ? 'Approved and published.' : 'Returned to student.');
+    loadPending(); loadTeacherMilestones(); loadOverview(); loadMap();
+  }catch(err){ toast(err.message); }
+}
+async function loadTeacherMilestones(){
+  const el = document.getElementById('teacherMilestones');
+  try{
+    const detail = await callApi('getSchoolDetail', {school_id:session.school_id});
+    el.innerHTML = '<p class="muted">Current stage: <strong>'+detail.school.status+'</strong></p>' +
+      detail.milestones.map(m=>'<div class="milestone-row"><div class="milestone-check '+(m.met?'met':'unmet')+'">'+(m.met?'✓':'')+'</div><div><strong>'+m.stage+'</strong><div class="muted">'+m.label+'</div></div></div>').join('');
+  }catch(err){ el.innerHTML = '<p class="muted">'+err.message+'</p>'; }
+}
+
+/* ---------------- Manager actions ---------------- */
+let allSchoolsCache = [];
+async function loadManagerSchools(){
+  const sel = document.getElementById('mgr-school-select');
+  try{
+    allSchoolsCache = await callApi('getAllSchoolsAdmin', {pin:session.pin});
+    sel.innerHTML = allSchoolsCache.map(s=>'<option value="'+s.school_id+'">'+s.school_name+'</option>').join('');
+  }catch(err){ sel.innerHTML = '<option>'+err.message+'</option>'; }
+}
+async function resetPinClick(){
+  const school_id = document.getElementById('mgr-school-select').value;
+  const role = document.getElementById('mgr-pin-role').value;
+  try{
+    const result = await callApi('resetPin', {pin:session.pin, school_id, role});
+    document.getElementById('resetResult').textContent = 'New '+role+' PIN: '+result.new_pin+' (share this with the school).';
+  }catch(err){ document.getElementById('resetResult').textContent = err.message; }
+}
+async function addSchoolClick(){
+  const school_name = document.getElementById('add-name').value.trim();
+  const address = document.getElementById('add-address').value.trim();
+  if(!school_name || !address){ document.getElementById('addResult').textContent = 'Enter a name and address.'; return; }
+  try{
+    const result = await callApi('addSchool', {pin:session.pin, school_name, address});
+    document.getElementById('addResult').textContent = 'Added '+school_name+'. Student PIN: '+result.student_pin+' · Teacher PIN: '+result.teacher_pin+'. Run "Geocode schools" to place it on the map.';
+    loadManagerSchools();
+  }catch(err){ document.getElementById('addResult').textContent = err.message; }
+}
+async function loadConfig(){
+  const el = document.getElementById('configList');
+  try{
+    // Config isn't exposed as a dedicated getter; reuse updateConfig's sheet by reading via getOverview-adjacent call is unnecessary —
+    // for simplicity, show editable known threshold keys directly.
+    const keys = [
+      ['milkweed_min','Milkweed needed to reach Caterpillar'],
+      ['wildflower_min','Wildflower species needed to reach Caterpillar'],
+      ['area_min','Area (m²) needed to reach Chrysalis'],
+      ['milkweed_target','Milkweed needed to reach Chrysalis'],
+      ['wildflower_target','Wildflower species needed to reach Chrysalis']
+    ];
+    el.innerHTML = keys.map(([key,label])=>
+      '<div class="config-line"><span>'+label+'</span><input class="mono" id="cfg-'+key+'" type="number" onchange="saveConfig(\''+key+'\')"></div>'
+    ).join('');
+  }catch(err){ el.innerHTML = '<p class="muted">'+err.message+'</p>'; }
+}
+async function saveConfig(key){
+  const value = document.getElementById('cfg-'+key).value;
+  try{
+    await callApi('updateConfig', {pin:session.pin, key, value});
+    toast('Saved. Run "Recompute all statuses" to apply to existing schools.');
+  }catch(err){ toast(err.message); }
+}
+
+async function runGeocode(){
+  const btn = document.getElementById('geocodeBtn');
+  const status = document.getElementById('maintenanceStatus');
+  btn.disabled = true;
+  status.textContent = 'Working… this can take 2–3 minutes for ~126 schools (about 1/second). Don\'t close this tab.';
+  try{
+    const result = await callApi('geocodeAllSchools', {pin:session.pin});
+    status.textContent = 'Done. Geocoded ' + result.updated + ' schools.' +
+      (result.failed && result.failed.length ? ' Could not match: ' + result.failed.join(', ') : '');
+    toast('Geocoding complete.');
+    loadMap();
+  }catch(err){
+    status.textContent = 'Error: ' + err.message;
+    toast(err.message);
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+async function runRecompute(){
+  const btn = document.getElementById('recomputeBtn');
+  const status = document.getElementById('maintenanceStatus');
+  btn.disabled = true;
+  status.textContent = 'Recomputing statuses for all schools…';
+  try{
+    const result = await callApi('recomputeAllStatuses', {pin:session.pin});
+    status.textContent = 'Done. Recomputed ' + result.updated + ' schools.';
+    toast('Recompute complete.');
+    loadOverview(); loadMap();
+  }catch(err){
+    status.textContent = 'Error: ' + err.message;
+    toast(err.message);
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+/* ---------------- init ---------------- */
+loadOverview();
+loadMap();
+loadAnnouncements();
+</script>
+</body>
+</html>
